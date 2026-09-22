@@ -1,0 +1,37 @@
+name: release
+
+# Pushing a tag like v1.0.1 builds the single-file exe, runs the tests and attaches the zip to a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test tests/CVmaker.Core.Tests -c Release
+
+      - name: Publish
+        run: dotnet publish src/CVmaker.App -c Release -r win-x64 -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path publish/CVmaker.exe, README.md, LICENSE -DestinationPath "dist/CVmaker-${{ github.ref_name }}-win-x64.zip"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/CVmaker-${{ github.ref_name }}-win-x64.zip
+          generate_release_notes: true

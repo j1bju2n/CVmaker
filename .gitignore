@@ -1,0 +1,15 @@
+# build
+bin/
+obj/
+*.user
+.vs/
+*.suo
+publish/
+dist/
+
+# reference sources (cloned third-party repos for analysis)
+refs/
+
+# local tool output
+*.log
+TestResults/
