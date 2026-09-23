@@ -1,0 +1,132 @@
+<Window x:Class="CVmania.App.ExportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Export.Title}" Icon="app.ico"
+        Width="760" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="#1c1f26" Foreground="#dddddd" FontFamily="Segoe UI" FontSize="12">
+    <Window.Resources>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#aaaaaa"/>
+            <Setter Property="Padding" Value="0,4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#111318"/>
+            <Setter Property="Foreground" Value="#eeeeee"/>
+            <Setter Property="BorderBrush" Value="#3c414b"/>
+            <Setter Property="Padding" Value="4,3"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Margin" Value="0,2"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#f0f0f0"/>
+            <Setter Property="Margin" Value="0,3"/>
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#f0f0f0"/>
+            <Setter Property="Margin" Value="0,3"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Background" Value="#2c3038"/>
+            <Setter Property="Foreground" Value="#eeeeee"/>
+            <Setter Property="BorderBrush" Value="#3c414b"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.ColumnSpan="2" x:Name="SummaryText" FontWeight="SemiBold" FontSize="13" Foreground="#ffffff" Margin="0,0,0,10"/>
+
+        <Label Grid.Row="1" Content="{DynamicResource Export.Format}"/>
+        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="FormatCombo" SelectedIndex="0">
+            <ComboBoxItem Content="{DynamicResource Export.Fmt.Mp3_192}"/>
+            <ComboBoxItem Content="{DynamicResource Export.Fmt.Mp3_320}"/>
+            <ComboBoxItem Content="{DynamicResource Export.Fmt.Ogg_06}"/>
+            <ComboBoxItem Content="{DynamicResource Export.Fmt.Ogg_08}"/>
+            <ComboBoxItem Content="{DynamicResource Export.Fmt.Wav}"/>
+        </ComboBox>
+
+        <Label Grid.Row="2" Content="{DynamicResource Export.Crossfade}"/>
+        <TextBox Grid.Row="2" Grid.Column="1" x:Name="CrossfadeBox" Width="80" HorizontalAlignment="Left"/>
+
+        <Label Grid.Row="3" Content="{DynamicResource Export.Tail}"/>
+        <TextBox Grid.Row="3" Grid.Column="1" x:Name="TailBox" Width="80" HorizontalAlignment="Left"/>
+
+        <Label Grid.Row="4" Content="{DynamicResource Export.TitleSuffix}"/>
+        <TextBox Grid.Row="4" Grid.Column="1" x:Name="TitleSuffixBox" Width="200" HorizontalAlignment="Left"/>
+
+        <Label Grid.Row="5" Content="{DynamicResource Export.Version}"/>
+        <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal">
+            <TextBox x:Name="VersionBox" Width="200"/>
+            <Label Content="{DynamicResource Export.Creator}" Margin="16,0,4,0"/>
+            <TextBox x:Name="CreatorBox" Width="170"/>
+        </StackPanel>
+
+        <Label Grid.Row="6" Content="{DynamicResource Export.Content}" VerticalAlignment="Top" Margin="0,6,0,0"/>
+        <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,4,0,4">
+            <RadioButton x:Name="KeepNotesRadio" GroupName="content" Content="{DynamicResource Export.KeepNotes}" IsChecked="True" Checked="Content_Changed"/>
+            <RadioButton x:Name="EmptyNotesRadio" GroupName="content" Content="{DynamicResource Export.EmptyNotes}" Checked="Content_Changed"/>
+            <RadioButton x:Name="NoOsuRadio" GroupName="content" Content="{DynamicResource Export.NoOsu}" Checked="Content_Changed"/>
+            <CheckBox x:Name="KeepBookmarksCheck" Content="{DynamicResource Export.KeepBookmarks}" Margin="0,6,0,0"/>
+        </StackPanel>
+
+        <Label Grid.Row="7" Content="{DynamicResource Export.Scroll}" VerticalAlignment="Top" Margin="0,6,0,0"/>
+        <StackPanel Grid.Row="7" Grid.Column="1" Margin="0,4,0,4">
+            <RadioButton x:Name="ScrollNormalizeRadio" GroupName="scroll" Content="{DynamicResource Export.Scroll.Normalize}" IsChecked="True"/>
+            <RadioButton x:Name="ScrollKeepRadio" GroupName="scroll" Content="{DynamicResource Export.Scroll.Keep}"/>
+            <TextBlock x:Name="ScrollInfoText" Foreground="#9aa" TextWrapping="Wrap" Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <Label Grid.Row="8" Content="{DynamicResource Export.Output}" VerticalAlignment="Top" Margin="0,6,0,0"/>
+        <StackPanel Grid.Row="8" Grid.Column="1" Margin="0,4,0,4">
+            <RadioButton x:Name="OutSongsRadio" GroupName="out" Content="{DynamicResource Export.Out.Songs}" IsChecked="True" Checked="OutputMode_Changed"/>
+            <RadioButton x:Name="OutSameRadio" GroupName="out" Content="{DynamicResource Export.Out.Same}" Checked="OutputMode_Changed"/>
+            <DockPanel>
+                <RadioButton x:Name="OutCustomRadio" GroupName="out" Content="{DynamicResource Export.Out.Custom}" Checked="OutputMode_Changed" VerticalAlignment="Center"/>
+                <Button x:Name="BrowseButton" DockPanel.Dock="Right" Content="{DynamicResource Export.Browse}" Click="BrowseButton_Click" Padding="8,2"/>
+            </DockPanel>
+            <TextBox x:Name="OutputPathBox" IsReadOnly="True" Foreground="#9aa"/>
+        </StackPanel>
+
+        <Label Grid.Row="9" Content="{DynamicResource Export.AudioName}" VerticalAlignment="Top" Margin="0,6,0,0"/>
+        <WrapPanel Grid.Row="9" Grid.Column="1">
+            <TextBox x:Name="AudioNameBox" Width="160" Margin="0,2,16,2"/>
+            <CheckBox x:Name="CopyBgCheck" Content="{DynamicResource Export.CopyBg}" Margin="0,0,16,0" VerticalAlignment="Center"/>
+            <CheckBox x:Name="VerifyCheck" Content="{DynamicResource Export.Verify}" Margin="0" VerticalAlignment="Center"/>
+        </WrapPanel>
+
+        <Border Grid.Row="10" Grid.ColumnSpan="2" Background="#111318" BorderBrush="#3c414b" BorderThickness="1" Padding="8" Margin="0,8,0,8" MinHeight="70">
+            <TextBlock x:Name="ResultText" TextWrapping="Wrap" Foreground="#cfd6dd"/>
+        </Border>
+
+        <StackPanel Grid.Row="11" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="OpenFolderButton" Content="{DynamicResource Export.OpenFolder}" Click="OpenFolderButton_Click" IsEnabled="False"/>
+            <Button x:Name="ExportButton" Content="{DynamicResource Export.Run}" Click="ExportButton_Click" Background="#2f6b3f" BorderBrush="#3c9a55" FontWeight="SemiBold" MinWidth="120"/>
+            <Button x:Name="CloseButton" Content="{DynamicResource Export.Close}" Click="CloseButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

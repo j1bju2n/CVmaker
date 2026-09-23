@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CVmaker.Core\CVmaker.Core.csproj" />
+    <ProjectReference Include="..\..\src\CVmania.Core\CVmania.Core.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
