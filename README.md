@@ -4,7 +4,7 @@ osu! stable에서 **지금 선택한 비트맵**을 실시간으로 읽어 와�
 원하는 부분을 들으면서 구간을 고르면 **Cut Ver. 오디오 + 타이밍이 맞춰진 .osu**를 바로 만들어 주는 Windows 프로그램입니다.
 
 기존 방식(오디오 추출 → 외부 편집기에서 자르기 → 변속 지점 계산 → 오프셋 재확인)을 한 화면에서 끝냅니다.
-UI는 영어/한국어(메뉴 `언어`)를 지원합니다. Made by Tamania.
+UI는 영어/한국어(메뉴 `언어`)를 지원합니다. Made by Tamania / Claude Fable 5.1 max-20을 사용하여 제작했습니다.
 
 ## 다운로드
 [Releases](https://github.com/j1bju2n/CVmaker/releases)에서 `CVmaker-vX.Y.Z-win-x64.zip`을 받아 압축을 풀고 `CVmaker.exe`를 실행하면 됩니다(설치·런타임 불필요, Windows 10/11 64비트).
