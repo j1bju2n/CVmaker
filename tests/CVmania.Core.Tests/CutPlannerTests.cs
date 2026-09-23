@@ -1,3 +1,4 @@
+using CVmania.Core.Audio;
 using CVmania.Core.Cut;
 using CVmania.Core.Osu;
 using Xunit;
@@ -188,6 +189,22 @@ public class CutPlannerTests
     {
         var n = CutRegion.Normalize(new[] { new CutRegion(500, 400), new CutRegion(300, 600), new CutRegion(100, 400), new CutRegion(900, 1000), new CutRegion(600, 700) });
         Assert.Equal(new[] { new CutRegion(100, 600), new CutRegion(600, 700), new CutRegion(900, 1000) }, n);
+    }
+
+    [Fact]
+    public void Normalize_ClipsRegionsToTheAudio()
+    {
+        // a region that starts before 0 (a drag that left the window) used to render 41 s of silence and shift the timing
+        var n = CutRegion.Normalize(new[] { new CutRegion(-41143, 30000), new CutRegion(100000, 999999), new CutRegion(300000, 400000) }, 200000.7);
+        Assert.Equal(new[] { new CutRegion(0, 30000), new CutRegion(100000, 200000) }, n);
+        Assert.Equal(new[] { new CutRegion(-41143, 30000) }, CutRegion.Normalize(new[] { new CutRegion(-41143, 30000) })); // without a length: unchanged
+
+        var pcm = new PcmAudio(Enumerable.Range(0, 44100).Select(i => (float)Math.Sin(i * 0.05)).ToArray(), 44100, 1);
+        var clipped = CutRenderer.Render(pcm, new[] { new CutRegion(-500, 500) }, new CutOptions());
+        var plain = CutRenderer.Render(pcm, new[] { new CutRegion(0, 500) }, new CutOptions());
+        Assert.Equal(plain.Frames, clipped.Frames);
+        Assert.Equal(plain.Samples, clipped.Samples);
+        Assert.Throws<ArgumentException>(() => CutRenderer.Render(pcm, new[] { new CutRegion(-2000, -1000) }, new CutOptions()));
     }
 
     [Fact]

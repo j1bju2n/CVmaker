@@ -28,12 +28,14 @@ public sealed class ExportContext
 public partial class ExportDialog : Window
 {
     private readonly ExportContext _ctx;
+    private readonly List<CutRegion> _regions; // clipped to the audio: the .osu and the audio are built from the same list
     private string? _lastExportDir;
     private bool _busy;
 
     public ExportDialog(ExportContext ctx)
     {
         _ctx = ctx;
+        _regions = CutRegion.Normalize(ctx.Regions, ctx.Audio.DurationMs);
         InitializeComponent();
         var s = ctx.Settings;
         FormatCombo.SelectedIndex = Math.Clamp(s.FormatIndex, 0, 4);
@@ -58,7 +60,7 @@ public partial class ExportDialog : Window
             case 2: OutCustomRadio.IsChecked = true; break;
             default: OutSongsRadio.IsChecked = true; break;
         }
-        var map = new TimeMap(CutRegion.Normalize(ctx.Regions));
+        var map = new TimeMap(_regions);
         SummaryText.Text = Loc.F("Export.Summary", map.Regions.Count, WaveformView.FormatTime(map.OutputLengthMs));
         UpdateOutputPath();
         UpdateScrollInfo();
@@ -80,7 +82,7 @@ public partial class ExportDialog : Window
         try
         {
             var opt = new CutOptions { KeepHitObjects = !noNotes, NormalizeScrollSpeed = true };
-            info = CutPlanner.Transform(_ctx.Beatmap, _ctx.Regions, opt, "audio").Scroll;
+            info = CutPlanner.Transform(_ctx.Beatmap, _regions, opt, "audio").Scroll;
         }
         catch { /* shown when the export itself fails */ }
         if (info == null)
@@ -212,7 +214,7 @@ public partial class ExportDialog : Window
 
         var beatmap = _ctx.Beatmap;
         var audio = _ctx.Audio;
-        var regions = _ctx.Regions.ToList();
+        var regions = _regions;
 
         // keeping the notes: warn about notes the cut made unplayable before writing anything
         if (options.WriteBeatmap && options.Cut.KeepHitObjects)
@@ -240,6 +242,13 @@ public partial class ExportDialog : Window
         SetBusy(false);
         _lastExportDir = outDir;
         OpenFolderButton.IsEnabled = true;
+        // osu! will show this file next; selecting it there must not replace the workspace of the original
+        if (report.BeatmapPath != null)
+        {
+            var sourceDir = Path.GetFullPath(Path.GetDirectoryName(_ctx.BeatmapPath)!);
+            bool ownFolder = !string.Equals(Path.GetFullPath(outDir).TrimEnd('\\'), sourceDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
+            _ctx.Settings.AddRecentExport(report.BeatmapPath, ownFolder ? outDir : null);
+        }
 
         var lines = new List<string>
         {

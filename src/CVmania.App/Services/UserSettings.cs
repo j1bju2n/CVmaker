@@ -30,6 +30,37 @@ public sealed class UserSettings
     /// <summary>Export: keep the editor bookmarks that fall inside the kept regions.</summary>
     public bool KeepBookmarks { get; set; } = true;
     public double Volume { get; set; } = 0.8;
+    /// <summary>.osu files this app wrote (newest first). Selecting one of them in osu! must not replace the workspace.</summary>
+    public List<string> RecentExports { get; set; } = new();
+    /// <summary>Folders created for exports (never the source beatmap's own folder): every difficulty in them is a cut version, even after osu! renamed the file.</summary>
+    public List<string> RecentExportDirs { get; set; } = new();
+
+    public void AddRecentExport(string osuPath, string? exclusiveDir)
+    {
+        Push(RecentExports, Norm(osuPath));
+        if (exclusiveDir != null) Push(RecentExportDirs, Norm(exclusiveDir));
+        Save();
+    }
+
+    public bool IsRecentExport(string path)
+    {
+        var full = Norm(path);
+        if (RecentExports.Any(p => string.Equals(p, full, StringComparison.OrdinalIgnoreCase))) return true;
+        var dir = Path.GetDirectoryName(full) ?? "";
+        return RecentExportDirs.Any(d => string.Equals(d, dir, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void Push(List<string> list, string value)
+    {
+        list.RemoveAll(p => string.Equals(p, value, StringComparison.OrdinalIgnoreCase));
+        list.Insert(0, value);
+        if (list.Count > 50) list.RemoveRange(50, list.Count - 50);
+    }
+
+    private static string Norm(string p)
+    {
+        try { return Path.GetFullPath(p).TrimEnd('\\', '/'); } catch { return p; }
+    }
 
     public static string FilePath => Path.Combine(App.LogDirectory, "settings.json");
 

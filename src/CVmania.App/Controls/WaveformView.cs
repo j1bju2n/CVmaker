@@ -139,6 +139,11 @@ public sealed class WaveformView : FrameworkElement
         return Math.Round(snapped);
     }
 
+    /// <summary>Keeps a time inside the audio: a drag that leaves the control (mouse capture) must not select before 0 or past the end.</summary>
+    public double ClampMs(double ms) => Math.Clamp(ms, 0, Math.Max(0, Math.Floor(_durationMs)));
+
+    private double SnapClamped(double ms) => ClampMs(SnapTime(ClampMs(ms)));
+
     /// <summary>osu! editor colours for beat snap divisors.</summary>
     public static Color DivisorColor(int divisor) => divisor switch
     {
@@ -582,8 +587,8 @@ public sealed class WaveformView : FrameworkElement
         if (_dragStart == null || e.LeftButton != MouseButtonState.Pressed) return;
         if (!_dragging && Math.Abs(pos.X - _dragStart.Value.X) < DragThresholdPx) return;
         _dragging = true;
-        SelectionStartMs = SnapTime(XToMs(_dragStart.Value.X));
-        SelectionEndMs = SnapTime(XToMs(pos.X));
+        SelectionStartMs = SnapClamped(XToMs(_dragStart.Value.X));
+        SelectionEndMs = SnapClamped(XToMs(pos.X));
         UpdateInsideFlag();
         InvalidateVisual();
     }
@@ -631,7 +636,7 @@ public sealed class WaveformView : FrameworkElement
         }
         else if (_dragStart != null)
         {
-            var ms = Math.Max(0, XToMs(pos.X));
+            var ms = ClampMs(XToMs(pos.X));
             int hit = -1;
             for (int i = 0; i < Regions.Count; i++) if (Regions[i].Contains(ms)) { hit = i; break; }
             RegionClicked?.Invoke(hit);

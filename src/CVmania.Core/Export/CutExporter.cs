@@ -51,20 +51,27 @@ public static class CutExporter
         Directory.CreateDirectory(options.OutputDirectory);
         var audioName = options.AudioBaseName + ExtensionFor(options.Format);
         var audioPath = Path.Combine(options.OutputDirectory, audioName);
+        var warnings = new List<string>();
+
+        // the audio and the .osu must be built from exactly the same regions: clipped to the audio first
+        var clipped = CutRegion.Normalize(regions, sourceAudio.DurationMs);
+        if (clipped.Count == 0) throw new ArgumentException("No region lies inside the audio.", nameof(regions));
+        var unclipped = CutRegion.Normalize(regions);
+        if (unclipped.Count != clipped.Count || unclipped.Zip(clipped).Any(p => p.First.StartMs != p.Second.StartMs || p.First.EndMs != p.Second.EndMs))
+            warnings.Add($"Some regions reached outside the audio (0 - {sourceAudio.DurationMs:0} ms) and were clipped to it.");
 
         progress?.Report("Rendering audio...");
-        var rendered = CutRenderer.Render(sourceAudio, regions, options.Cut);
+        var rendered = CutRenderer.Render(sourceAudio, clipped, options.Cut);
 
         progress?.Report($"Encoding {audioName}...");
         var offset = EncodeVerified(rendered, audioPath, options, progress);
 
         CutResult? cut = null;
         string? beatmapPath = null;
-        var warnings = new List<string>();
         if (options.WriteBeatmap)
         {
             progress?.Report("Writing beatmap...");
-            cut = CutPlanner.Transform(beatmap, regions, options.Cut, audioName);
+            cut = CutPlanner.Transform(beatmap, clipped, options.Cut, audioName);
             warnings.AddRange(cut.Warnings);
             beatmapPath = Path.Combine(options.OutputDirectory, BuildOsuFileName(cut.Output));
             cut.Output.Save(beatmapPath);

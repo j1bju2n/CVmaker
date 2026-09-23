@@ -22,8 +22,8 @@ public static class CutRenderer
 {
     public static PcmAudio Render(PcmAudio src, IReadOnlyList<CutRegion> regions, CutOptions options)
     {
-        var normalized = CutRegion.Normalize(regions);
-        if (normalized.Count == 0) throw new ArgumentException("At least one non-empty region is required.", nameof(regions));
+        var normalized = CutRegion.Normalize(regions, src.DurationMs);
+        if (normalized.Count == 0) throw new ArgumentException("At least one non-empty region inside the audio is required.", nameof(regions));
         var map = new TimeMap(normalized);
 
         int ch = src.Channels;

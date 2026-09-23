@@ -13,6 +13,7 @@ using CVmania.App.Localization;
 using CVmania.App.Services;
 using CVmania.Core.Audio;
 using CVmania.Core.Cut;
+using CVmania.Core.Export;
 using CVmania.Core.Osu;
 using CVmania.Core.Timing;
 using Microsoft.Win32;
@@ -74,6 +75,13 @@ public partial class MainWindow : Window
     private string? _screenshotDir;
     private List<CutRegion>? _startupRegions;
     private string? _startupOutDir;
+
+    private WorkSession? _pendingSession; // a loaded work file, applied once its beatmap has loaded
+    private bool _loadingBeatmap;         // the region list is being replaced: do not auto-save it meanwhile
+    private bool _followOsuNoPersist;     // programmatic follow-osu changes (opening a file) are not saved as the preference
+    private DateTime? _lastAutoSave;
+    private bool _screenshotStarted;
+    private string? _sessionCheckOther;   // dev: another beatmap to switch to and back (see RunSessionCheckAsync)
 
     public MainWindow()
     {
@@ -164,6 +172,9 @@ public partial class MainWindow : Window
             }).ToList();
         }
         _screenshotDir = Opt("--screenshot");
+        var sessionsDir = Opt("--sessions-dir");
+        if (sessionsDir != null) App.SessionsDirectory = Path.GetFullPath(sessionsDir);
+        _sessionCheckOther = Opt("--session-check");
         var lang = Opt("--lang");
         if (lang != null)
         {
@@ -173,7 +184,7 @@ public partial class MainWindow : Window
         var osu = args.FirstOrDefault(a => a.EndsWith(".osu", StringComparison.OrdinalIgnoreCase));
         if (osu != null && File.Exists(osu))
         {
-            FollowOsuCheck.IsChecked = false;
+            SetFollowOsu(false, persist: false);
             LoadBeatmap(Path.GetFullPath(osu));
         }
     }
@@ -215,8 +226,44 @@ public partial class MainWindow : Window
         await Task.Delay(500);
         SaveVisual(nd, Path.Combine(_screenshotDir, "issues.png"));
         nd.Close();
+        if (_sessionCheckOther != null) await RunSessionCheckAsync();
         await Task.Delay(200);
         Application.Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Dev check (no input injection): the work must survive osu! switching to another song and back,
+    /// and following osu! into a file this app exported must keep the workspace. Writes session-check.txt.
+    /// </summary>
+    private async Task RunSessionCheckAsync()
+    {
+        var lines = new List<string>();
+        var original = _beatmapPath!;
+        var before = _regionList.ToList();
+        AutoSaveSession();
+        lines.Add($"saved {before.Count} region(s) -> {WorkSession.AutoPathFor(App.SessionsDirectory, original, _beatmap!.AudioFilename)}");
+
+        await LoadBeatmapAsync(_sessionCheckOther!);
+        bool otherEmpty = _regionList.Count == 0 && string.Equals(_beatmapPath, Path.GetFullPath(_sessionCheckOther!), StringComparison.OrdinalIgnoreCase);
+        lines.Add($"other song loaded: {Path.GetFileName(_beatmapPath)} regions={_regionList.Count} (expected 0) -> {otherEmpty}");
+
+        await LoadBeatmapAsync(original);
+        bool restored = _regionList.SequenceEqual(before);
+        lines.Add($"back on the original: regions={_regionList.Count} restored={restored} status=\"{StatusText.Text}\"");
+
+        var savedExports = _settings.RecentExports.ToList();
+        var savedDirs = _settings.RecentExportDirs.ToList();
+        var fakeDir = Path.Combine(App.SessionsDirectory, "fake-export");
+        _settings.AddRecentExport(Path.Combine(fakeDir, "x (Cut Ver.) (T) [d].osu"), fakeDir);
+        FollowSelection(Path.Combine(fakeDir, "renamed by osu.osu")); // osu! renames files when the difficulty name changes
+        bool guarded = string.Equals(_beatmapPath, original, StringComparison.OrdinalIgnoreCase) && _regionList.SequenceEqual(before);
+        lines.Add($"guard: stayed on the original={guarded} status=\"{StatusText.Text}\"");
+        _settings.RecentExports = savedExports;
+        _settings.RecentExportDirs = savedDirs;
+        _settings.Save();
+
+        lines.Insert(0, otherEmpty && restored && guarded ? "OK" : "FAIL");
+        File.WriteAllLines(Path.Combine(_screenshotDir!, "session-check.txt"), lines);
     }
 
     /// <summary>Dev helper: renders a window's content (with its background) to a PNG without touching the desktop.</summary>
@@ -359,9 +406,20 @@ public partial class MainWindow : Window
         _syncingChecks = true;
         FollowOsuMenu.IsChecked = FollowOsuCheck.IsChecked == true;
         _syncingChecks = false;
-        _settings.FollowOsu = FollowOsuCheck.IsChecked == true;
-        _settings.Save();
+        if (!_followOsuNoPersist)
+        {
+            _settings.FollowOsu = FollowOsuCheck.IsChecked == true;
+            _settings.Save();
+        }
         if (FollowOsuCheck.IsChecked == true) OnOsuBeatmapChanged(_watcher.Latest.BeatmapPath);
+    }
+
+    /// <summary>Opening a file by hand turns following off for this session only; the saved preference stays as the user set it.</summary>
+    private void SetFollowOsu(bool on, bool persist)
+    {
+        _followOsuNoPersist = !persist;
+        FollowOsuCheck.IsChecked = on;
+        _followOsuNoPersist = false;
     }
 
     private void SaveAmplitude(double s)
@@ -394,12 +452,25 @@ public partial class MainWindow : Window
     private void OnOsuBeatmapChanged(string? path)
     {
         if (FollowOsuCheck.IsChecked != true || path == null) return;
+        FollowSelection(path);
+    }
+
+    /// <summary>osu! selected another beatmap: load it, unless it is a cut version this app wrote (testing it must not replace the work).</summary>
+    private void FollowSelection(string path)
+    {
         if (string.Equals(path, _beatmapPath, StringComparison.OrdinalIgnoreCase)) return;
+        if (_regionList.Count > 0 && _settings.IsRecentExport(path))
+        {
+            StatusText.Text = Loc.F("Msg.CutSelected", Path.GetFileName(path));
+            return;
+        }
         LoadBeatmap(path);
     }
 
     // ============================================================== loading
-    private async void LoadBeatmap(string path)
+    private async void LoadBeatmap(string path) => await LoadBeatmapAsync(path);
+
+    private async Task LoadBeatmapAsync(string path)
     {
         var token = ++_loadToken;
         OsuFile file;
@@ -437,20 +508,26 @@ public partial class MainWindow : Window
             _audio = null; _audioPath = null;
             Detail.SetAudio(null); Overview.SetAudio(null);
             _player.Free();
+            _loadingBeatmap = true;
             ClearRegions();
             RefreshRegions();
+            _loadingBeatmap = false;
             return;
         }
 
         bool sameAudio = string.Equals(audioPath, _audioPath, StringComparison.OrdinalIgnoreCase) && _audio != null;
         if (sameAudio)
         {
+            // another difficulty of the same song: the work continues (same auto-save key)
+            if (_pendingSession != null) { ApplySession(_pendingSession, announce: true); _pendingSession = null; }
             RefreshRegions();
             Detail.InvalidateVisual();
             Overview.InvalidateVisual();
             return;
         }
 
+        // the previous song's work is already auto-saved; from here on the list belongs to the new song
+        _loadingBeatmap = true;
         ExitPreview(keepPosition: false);
         _player.Free();
         ClearRegions();
@@ -468,6 +545,7 @@ public partial class MainWindow : Window
             if (token != _loadToken) return;
             LoadingText.Visibility = Visibility.Collapsed;
             StatusText.Text = Loc.F("Msg.DecodeFail", ex.Message);
+            _loadingBeatmap = false;
             return;
         }
         if (token != _loadToken) return; // a newer beatmap was requested meanwhile
@@ -488,15 +566,26 @@ public partial class MainWindow : Window
         LoadingText.Visibility = Visibility.Collapsed;
         PlayButton.IsEnabled = StopButton.IsEnabled = _player.HasStream;
         StatusText.Text = Loc.F("Msg.Loaded", Path.GetFileName(audioPath), pcm.SampleRate, pcm.Channels, WaveformView.FormatTime(pcm.DurationMs));
+        _loadingBeatmap = false;
         if (_startupRegions != null)
         {
             _regionList.AddRange(_startupRegions);
             _startupRegions = null;
         }
+        else if (_pendingSession != null)
+        {
+            ApplySession(_pendingSession, announce: true);
+            _pendingSession = null;
+        }
+        else RestoreAutoSession();
         RefreshRegions();
         if (_regions.Count > 0 && _screenshotDir != null) RegionsList.SelectedIndex = 0;
         UpdatePlayhead();
-        if (_screenshotDir != null) _ = RunScreenshotModeAsync();
+        if (_screenshotDir != null && !_screenshotStarted)
+        {
+            _screenshotStarted = true;
+            _ = RunScreenshotModeAsync();
+        }
     }
 
     private void UpdateMapTexts()
@@ -633,7 +722,7 @@ public partial class MainWindow : Window
     private void SetSelectionEdge(bool start)
     {
         if (_audio == null) return;
-        var t = Detail.SnapTime(CurrentOriginalPositionMs());
+        var t = Detail.ClampMs(Detail.SnapTime(CurrentOriginalPositionMs()));
         if (start)
         {
             _selStart = t;
@@ -737,7 +826,7 @@ public partial class MainWindow : Window
     private void RefreshRegions()
     {
         int keep = RegionsList.SelectedIndex;
-        var normalized = CutRegion.Normalize(_regionList);
+        var normalized = CutRegion.Normalize(_regionList, _audio?.DurationMs); // never outside the audio
         _regionList.Clear();
         _regionList.AddRange(normalized);
         var map = new TimeMap(normalized);
@@ -759,11 +848,95 @@ public partial class MainWindow : Window
         Detail.SelectedRegionIndex = RegionsList.SelectedIndex;
         Detail.InvalidateVisual();
         Overview.InvalidateVisual();
+        if (!_loadingBeatmap && _screenshotDir == null) AutoSaveSession(); // dev screenshots must not leave sessions behind
         RegionsSummaryText.Text = normalized.Count == 0
             ? Loc.T("Regions.None")
-            : Loc.F("Regions.Summary", normalized.Count, WaveformView.FormatTime(map.OutputLengthMs));
+            : Loc.F("Regions.Summary", normalized.Count, WaveformView.FormatTime(map.OutputLengthMs))
+              + (_lastAutoSave != null ? Loc.F("Regions.AutoSaved", _lastAutoSave.Value.ToString("HH:mm:ss")) : "");
         if (_previewMode) ExitPreview(keepPosition: true);
         UpdateRegionButtons();
+    }
+
+    // ============================================================== work sessions
+    private WorkSession BuildSession() =>
+        WorkSession.From(_beatmap!, _beatmapPath!, _regionList, Detail.ViewStartMs, Detail.ViewLengthMs);
+
+    /// <summary>Written after every change; the file belongs to the song (folder + audio), not to the difficulty.</summary>
+    private void AutoSaveSession()
+    {
+        if (_beatmap == null || _beatmapPath == null || _audio == null) return;
+        try
+        {
+            BuildSession().Save(WorkSession.AutoPathFor(App.SessionsDirectory, _beatmapPath, _beatmap.AudioFilename));
+            _lastAutoSave = DateTime.Now;
+        }
+        catch { /* never block editing because of the auto-save */ }
+    }
+
+    private void RestoreAutoSession()
+    {
+        if (_beatmap == null || _beatmapPath == null || _audio == null || _regionList.Count > 0) return;
+        var s = WorkSession.LoadAuto(App.SessionsDirectory, _beatmapPath, _beatmap.AudioFilename);
+        if (s == null || s.Regions.Count == 0) return;
+        ApplySession(s, announce: true);
+    }
+
+    /// <summary>Replaces the region list (the caller refreshes) and moves the view to where the work was.</summary>
+    private void ApplySession(WorkSession s, bool announce)
+    {
+        _regionList.Clear();
+        _regionList.AddRange(s.ToRegions());
+        if (s.ViewLengthMs > 0) Detail.SetView(s.ViewStartMs, s.ViewLengthMs);
+        _lastAutoSave = null;
+        if (announce) StatusText.Text = Loc.F("Msg.SessionRestored", s.Regions.Count, s.SavedAt.ToString("MM-dd HH:mm"));
+    }
+
+    private void SaveWork_Click(object sender, RoutedEventArgs e)
+    {
+        if (_beatmap == null || _beatmapPath == null || _audio == null) return;
+        var dlg = new SaveFileDialog
+        {
+            Title = Loc.T("Menu.SaveWork").Replace("_", "").TrimEnd('.'),
+            Filter = Loc.T("Work.Filter"),
+            DefaultExt = WorkSession.Extension,
+            AddExtension = true,
+            FileName = CutExporter.SanitizeFileName($"{_beatmap.Artist} - {_beatmap.Title} [{_beatmap.Version}]") + WorkSession.Extension,
+            InitialDirectory = Path.GetDirectoryName(_beatmapPath),
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            BuildSession().Save(dlg.FileName);
+            StatusText.Text = Loc.F("Msg.WorkSaved", dlg.FileName);
+        }
+        catch (Exception ex) { StatusText.Text = Loc.F("Msg.WorkSaveFail", ex.Message); }
+    }
+
+    private void LoadWork_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog { Title = Loc.T("Menu.LoadWork").Replace("_", "").TrimEnd('.'), Filter = Loc.T("Work.Filter") };
+        if (_beatmapPath != null) dlg.InitialDirectory = Path.GetDirectoryName(_beatmapPath);
+        if (dlg.ShowDialog(this) != true) return;
+        WorkSession? s;
+        try { s = WorkSession.Load(dlg.FileName); }
+        catch (Exception ex) { StatusText.Text = Loc.F("Msg.WorkLoadFail", ex.Message); return; }
+        if (s == null) { StatusText.Text = Loc.F("Msg.WorkLoadFail", dlg.FileName); return; }
+
+        bool sameMap = _beatmapPath != null && string.Equals(s.BeatmapPath, _beatmapPath, StringComparison.OrdinalIgnoreCase);
+        if (!sameMap && File.Exists(s.BeatmapPath))
+        {
+            // the work belongs to another beatmap: open that one, then apply the regions
+            _pendingSession = s;
+            SetFollowOsu(false, persist: false);
+            LoadBeatmap(s.BeatmapPath);
+            return;
+        }
+        if (_audio == null) { StatusText.Text = Loc.F("Msg.WorkMapMissing", s.BeatmapPath); return; }
+        ApplySession(s, announce: false);
+        RefreshRegions();
+        StatusText.Text = sameMap
+            ? Loc.F("Msg.WorkLoaded", Path.GetFileName(dlg.FileName))
+            : Loc.F("Msg.WorkLoadedOther", Path.GetFileName(dlg.FileName), Path.GetFileName(s.BeatmapPath));
     }
 
     // ------------------------------------------------------------ mistake guard
@@ -1057,7 +1230,7 @@ public partial class MainWindow : Window
         try
         {
             var pcm = await Task.Run(() => CutRenderer.Render(audio, regions, opt));
-            _previewMap = new TimeMap(CutRegion.Normalize(regions));
+            _previewMap = new TimeMap(CutRegion.Normalize(regions, _audio.DurationMs));
             _previewDurationMs = pcm.DurationMs;
             _player.ClearLoop();
             _player.LoadPcm(pcm);
@@ -1140,7 +1313,7 @@ public partial class MainWindow : Window
         if (_songsFolder != null && Directory.Exists(_songsFolder)) dlg.InitialDirectory = _songsFolder;
         if (dlg.ShowDialog(this) == true)
         {
-            FollowOsuCheck.IsChecked = false;
+            SetFollowOsu(false, persist: false);
             LoadBeatmap(dlg.FileName);
         }
     }
@@ -1161,7 +1334,7 @@ public partial class MainWindow : Window
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] files) return;
         var osu = files.FirstOrDefault(f => f.EndsWith(".osu", StringComparison.OrdinalIgnoreCase));
         if (osu == null) return;
-        FollowOsuCheck.IsChecked = false;
+        SetFollowOsu(false, persist: false);
         LoadBeatmap(osu);
     }
 
@@ -1172,6 +1345,8 @@ public partial class MainWindow : Window
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         if (ctrl && e.Key == Key.O) { OpenOsuButton_Click(sender, e); e.Handled = true; return; }
         if (ctrl && e.Key == Key.E) { ExportButton_Click(sender, e); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.S) { SaveWork_Click(sender, e); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.L) { LoadWork_Click(sender, e); e.Handled = true; return; }
         if (e.Key == Key.F5) { ReloadButton_Click(sender, e); e.Handled = true; return; }
         switch (e.Key)
         {
@@ -1206,6 +1381,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
+        AutoSaveSession();
         _settings.Save();
         _uiTimer.Stop();
         _watcher.Dispose();

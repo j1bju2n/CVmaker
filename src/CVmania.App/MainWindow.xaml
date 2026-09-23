@@ -146,6 +146,9 @@
                 <MenuItem Header="{DynamicResource Menu.Open}" Click="OpenOsuButton_Click" InputGestureText="Ctrl+O"/>
                 <MenuItem Header="{DynamicResource Menu.Reload}" Click="ReloadButton_Click" InputGestureText="F5"/>
                 <Separator/>
+                <MenuItem Header="{DynamicResource Menu.SaveWork}" Click="SaveWork_Click" InputGestureText="Ctrl+S"/>
+                <MenuItem Header="{DynamicResource Menu.LoadWork}" Click="LoadWork_Click" InputGestureText="Ctrl+L"/>
+                <Separator/>
                 <MenuItem Header="{DynamicResource Menu.Export}" Click="ExportButton_Click" InputGestureText="Ctrl+E"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu.Exit}" Click="Exit_Click"/>

@@ -13,6 +13,9 @@ public partial class App : Application
     public static string LogDirectory { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CVmania");
 
+    /// <summary>Auto-saved work, one file per song (dev runs redirect it with --sessions-dir).</summary>
+    public static string SessionsDirectory { get; set; } = Path.Combine(LogDirectory, "sessions");
+
     public static UserSettings Settings { get; private set; } = new();
 
     protected override void OnStartup(StartupEventArgs e)

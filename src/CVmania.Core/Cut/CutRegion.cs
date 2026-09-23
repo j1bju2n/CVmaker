@@ -44,10 +44,17 @@ public readonly record struct CutRegion(int StartMs, int EndMs, int FadeInMs = 0
     /// <summary>
     /// Sort, drop empties and merge overlapping regions. Regions that merely touch are kept
     /// separate so that a split (Enter inside a region) survives; the renderer and planner treat a
-    /// touching join without edge audio as continuous.
+    /// touching join without edge audio as continuous. With <paramref name="songLengthMs"/> every
+    /// region is first clipped to the audio, [0, length]: a region reaching before 0 would otherwise
+    /// render as silence (and shift the whole timing) because there is no audio there.
     /// </summary>
-    public static List<CutRegion> Normalize(IEnumerable<CutRegion> regions)
+    public static List<CutRegion> Normalize(IEnumerable<CutRegion> regions, double? songLengthMs = null)
     {
+        if (songLengthMs != null)
+        {
+            int max = (int)Math.Floor(Math.Max(0, songLengthMs.Value));
+            regions = regions.Select(r => r with { StartMs = Math.Clamp(r.StartMs, 0, max), EndMs = Math.Clamp(r.EndMs, 0, max) }).ToList();
+        }
         var sorted = regions.Where(r => !r.IsEmpty).OrderBy(r => r.StartMs).ThenBy(r => r.EndMs).ToList();
         var result = new List<CutRegion>();
         foreach (var r in sorted)

@@ -10,7 +10,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>CVmania</AssemblyName>
     <RootNamespace>CVmania.App</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
