@@ -5,7 +5,8 @@ osu! stable에서 **지금 선택한 비트맵**을 실시간으로 읽어 와�
 osu!mania 전용입니다(스크롤 속도 처리 등이 mania 기준). CV는 Cut Ver.의 약자입니다.
 
 기존 방식(오디오 추출 → 외부 편집기에서 자르기 → 변속 지점 계산 → 오프셋 재확인 → SV 다시 맞추기)을 한 화면에서 끝냅니다.
-UI는 영어/한국어(메뉴 `언어`)를 지원합니다. Made by Tamania / Claude Fable 5.1 max-20을 사용하여 제작했습니다.
+UI는 영어/한국어(메뉴 `언어`)를 지원합니다. Made by Tamania
+Claude Fable 5.1모델을 사용하여 제작했습니다.
 
 ## 다운로드
 [Releases](https://github.com/j1bju2n/CVmania/releases)에서 `CVmania-vX.Y.Z-win-x64.zip`을 받아 압축을 풀고 `CVmania.exe`를 실행하면 됩니다(설치·런타임 불필요, Windows 10/11 64비트).
